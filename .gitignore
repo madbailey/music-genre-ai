@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+venv/
+.env
+.env.local
+
+# Data
+data/raw/  # Exclude large audio files
+data/processed/  # Exclude processed numpy arrays
+
+# IDE
+.vscode/
+.idea/
+
+# Docker
+docker-compose.yml
+*.env.docker
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+Thumbs.db
