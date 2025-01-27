@@ -3,9 +3,12 @@ FROM python:3.9-slim
 
 WORKDIR /app
 
+# Install system dependencies for audio processing
 RUN apt-get update && apt-get install -y \
-libsndfile1 \
-&& rm -rf /var/lib/apt/lists/*
+    libsndfile1 \
+    ffmpeg \
+    libavcodec-extra \
+    && rm -rf /var/lib/apt/lists/*
 
 
 COPY requirements.txt .

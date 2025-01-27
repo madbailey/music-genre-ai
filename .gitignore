@@ -9,8 +9,8 @@ venv/
 .env.local
 
 # Data
-data/raw/  # Exclude large audio files
-data/processed/  # Exclude processed numpy arrays
+data/raw/ 
+data/processed/  
 
 # IDE
 .vscode/
