@@ -1,94 +1,72 @@
 import numpy as np
+from src.data_loader import original_load_dataset
+from src.augment import augment_audio
+from src.model import create_model
 from sklearn.model_selection import train_test_split
-from src.data_loader import load_dataset 
-from src.model import create_model  
-from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
-from tensorflow.keras.utils import to_categorical  # Add this import
-import matplotlib.pyplot as plt
+from tensorflow.keras.callbacks import EarlyStopping
+from tensorflow.keras.utils import to_categorical
 
+def mixup_data(X, y, alpha=0.2):
+    """Performs mixup on the input data and their labels."""
+    if alpha > 0:
+        weights = np.random.beta(alpha, alpha, len(X))
+        indices = np.random.permutation(len(X))
+        
+        X_weights = weights.reshape(len(X), 1, 1, 1)
+        X_mixed = X_weights * X + (1 - X_weights) * X[indices]
+        
+        y_weights = weights.reshape(len(X), 1)
+        y_mixed = y_weights * y + (1 - y_weights) * y[indices]
+        
+        return X_mixed, y_mixed
+    return X, y
 
-# Load data
+def load_dataset():
+    X, y = original_load_dataset()
+    X_augmented = X.copy()
+    for i in np.random.choice(len(X), size=len(X)//2, replace=False):
+        X_augmented[i] = augment_audio(X_augmented[i])
+    return X_augmented, y
+# Load and prepare data
 X, y = load_dataset()
-print(f"Raw data shape: {X.shape}")  # Should be (1000, 130, 13)
-
-
-X = np.transpose(X, (0, 2, 1))
-X = X[..., np.newaxis]  # New shape: (1000, 130, 13, 1)
-print(f"With channel dim: {X.shape}")  # Should be (1000, 130, 13, 1)
-
-y = to_categorical(y)  # Add this line
-print(f"Labels shape: {y.shape}")
+X = np.transpose(X, (0, 2, 1))[..., np.newaxis]
+y = to_categorical(y)
 
 # Split data
 X_train, X_val, y_train, y_val = train_test_split(
-    X, y, 
-    test_size=0.2, 
-    stratify=y,
-    random_state=42
+    X, y, test_size=0.2, random_state=42
 )
 
-# Create callbacks
-early_stop = EarlyStopping(
-    monitor='val_loss',
-    patience=10,
-    restore_best_weights=True,
-    verbose=1
-)
-
-lr_scheduler = ReduceLROnPlateau(
-    monitor='val_loss',
-    factor=0.5,
-    patience=3,
-    min_lr=1e-6,
-    verbose=1
-)
-
-# Create and train model
+# Create model
 model = create_model(input_shape=X_train.shape[1:])
-model.compile(  # Recompile with categorical_crossentropy
+model.compile(
     optimizer='adam',
-    loss='categorical_crossentropy',  # Changed from sparse_categorical_crossentropy
-    metrics=['accuracy', 'AUC']
+    loss='categorical_crossentropy',
+    metrics=['accuracy', 'AUC']  # Added AUC back
 )
 
-# Train model
-history = model.fit(
-    X_train, y_train,
-    validation_data=(X_val, y_val),
-    epochs=100,
-    batch_size=32,
-    callbacks=[early_stop, lr_scheduler],
-    verbose=1
-)
+# Training with mixup
+batch_size = 32
+epochs = 50
+early_stop = EarlyStopping(patience=10, restore_best_weights=True)
+
+for epoch in range(epochs):
+    # Apply mixup to training data
+    X_mixed, y_mixed = mixup_data(X_train, y_train, alpha=0.1) # adjust 
+    
+    # Train for one epoch
+    history = model.fit(
+        X_mixed, y_mixed,
+        validation_data=(X_val, y_val),
+        epochs=1,
+        batch_size=batch_size,
+        callbacks=[early_stop],
+        verbose=1
+    )
 
 # Save model
 model.save("model/genre_classifier.keras")
 print("\nModel saved to model/genre_classifier.keras")
-
-# Plot training history
-plt.figure(figsize=(12, 4))
-
-# Plot accuracy
-plt.subplot(1, 2, 1)
-plt.plot(history.history['accuracy'], label='Training')
-plt.plot(history.history['val_accuracy'], label='Validation')
-plt.title('Model Accuracy')
-plt.xlabel('Epoch')
-plt.ylabel('Accuracy')
-plt.legend()
-
-# Plot loss
-plt.subplot(1, 2, 2)
-plt.plot(history.history['loss'], label='Training')
-plt.plot(history.history['val_loss'], label='Validation')
-plt.title('Model Loss')
-plt.xlabel('Epoch')
-plt.ylabel('Loss')
-plt.legend()
-
-plt.tight_layout()
-plt.savefig('model/training_history.png')
-plt.close()
 
 # Print final metrics
 final_train_loss, final_train_acc, final_train_auc = model.evaluate(X_train, y_train, verbose=0)

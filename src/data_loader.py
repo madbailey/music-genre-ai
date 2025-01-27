@@ -1,25 +1,25 @@
 import numpy as np
-import json
 from pathlib import Path
 
-def load_dataset(processed_dir="data/processed"):
-    processed_dir = Path(processed_dir)
-    X, y = [], []
+def original_load_dataset():
+    processed_data_path = Path("data/processed")
     
     # Load label map
-    with open(processed_dir / "label_map.json", "r") as f:
+    import json
+    with open(processed_data_path / "label_map.json", "r") as f:
         label_map = json.load(f)
     
-    # Load all .npy files
-    for genre, label in label_map.items():
-        genre_dir = processed_dir / genre
-        for file in genre_dir.glob("*.npy"):
-            X.append(np.load(file))
-            y.append(label)
+    X = []
+    y = []
+    
+    for genre_folder in processed_data_path.glob("*"):
+        if genre_folder.is_dir():
+            genre = genre_folder.name
+            if genre in label_map:  # Skip label_map.json
+                label = label_map[genre]
+                for npy_file in genre_folder.glob("*.npy"):
+                    features = np.load(npy_file)
+                    X.append(features)
+                    y.append(label)
     
     return np.array(X), np.array(y)
-
-# Test it
-if __name__ == "__main__":
-    X, y = load_dataset()
-    print(f"Dataset shapes: X={X.shape}, y={y.shape}")

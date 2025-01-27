@@ -1,3 +1,4 @@
+from src.augment import augment_audio
 import librosa
 import numpy as np 
 import os
@@ -11,7 +12,7 @@ N_MFCC = 13
 MAX_LENGTH = 130
 
 def process_audio(file_path, max_length=MAX_LENGTH):
-    #load local audio and extract mfccs
+    #load local audio and extract features
     audio, sr = librosa.load(file_path, sr=SR)
     
     # Add validation
@@ -22,20 +23,31 @@ def process_audio(file_path, max_length=MAX_LENGTH):
     if len(audio) > SR * DURATION:
         audio = audio[:SR * DURATION]
     elif len(audio) < SR * DURATION:
-        # Zero pad if too short
         padding = SR * DURATION - len(audio)
         audio = np.pad(audio, (0, padding), mode='constant')
     
-    mfccs = librosa.feature.mfcc(y=audio, sr=sr, n_mfcc=N_MFCC).T
-    mfccs = (mfccs - np.mean(mfccs)) / np.std(mfccs)
+    # Extract multiple features
+    mfccs = librosa.feature.mfcc(y=audio, sr=sr, n_mfcc=N_MFCC)
+    spectral_centroids = librosa.feature.spectral_centroid(y=audio, sr=sr)
+    chroma = librosa.feature.chroma_stft(y=audio, sr=sr)
     
-    if mfccs.shape[0] < max_length:
-        pad = max_length - mfccs.shape[0]
-        mfccs = np.pad(mfccs, ((0, pad), (0, 0)), mode='constant')
-    else:
-        mfccs = mfccs[:max_length, :]
-
-    return mfccs.T
+    # Normalize each feature
+    mfccs = (mfccs - np.mean(mfccs)) / (np.std(mfccs) + 1e-6)
+    spectral_centroids = (spectral_centroids - np.mean(spectral_centroids)) / (np.std(spectral_centroids) + 1e-6)
+    chroma = (chroma - np.mean(chroma)) / (np.std(chroma) + 1e-6)
+    
+    # Resize features to match dimensions
+    target_length = 130  # Your MAX_LENGTH
+    mfccs = librosa.util.fix_length(mfccs, size=target_length, axis=1)
+    spectral_centroids = librosa.util.fix_length(spectral_centroids, size=target_length, axis=1)
+    chroma = librosa.util.fix_length(chroma, size=target_length, axis=1)
+    
+    # Stack features
+    features = np.vstack([mfccs,  # 13 features
+                         spectral_centroids,  # 1 feature
+                         chroma])  # 12 features
+    
+    return features  # Shape will be (26, 130)
 
 
 def save_processed_data():
