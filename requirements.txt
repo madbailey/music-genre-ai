@@ -4,3 +4,4 @@ flask==2.3.2
 gunicorn==20.1.0
 python-dotenv==1.0.0
 audioread==3.0.0
+matplotlib==3.7.1

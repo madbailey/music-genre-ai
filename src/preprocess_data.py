@@ -13,16 +13,29 @@ MAX_LENGTH = 130
 def process_audio(file_path, max_length=MAX_LENGTH):
     #load local audio and extract mfccs
     audio, sr = librosa.load(file_path, sr=SR)
-    mfccs = librosa.feature.mfcc(y=audio, sr=sr, n_mfcc=N_MFCC).T #(time, n_mfcc)
-
+    
+    # Add validation
+    if len(audio) < SR:  # Less than 1 second
+        raise ValueError("Audio file too short")
+        
+    # Ensure consistent length
+    if len(audio) > SR * DURATION:
+        audio = audio[:SR * DURATION]
+    elif len(audio) < SR * DURATION:
+        # Zero pad if too short
+        padding = SR * DURATION - len(audio)
+        audio = np.pad(audio, (0, padding), mode='constant')
+    
+    mfccs = librosa.feature.mfcc(y=audio, sr=sr, n_mfcc=N_MFCC).T
+    mfccs = (mfccs - np.mean(mfccs)) / np.std(mfccs)
+    
     if mfccs.shape[0] < max_length:
         pad = max_length - mfccs.shape[0]
         mfccs = np.pad(mfccs, ((0, pad), (0, 0)), mode='constant')
     else:
         mfccs = mfccs[:max_length, :]
 
-    return mfccs 
-
+    return mfccs.T
 
 
 def save_processed_data():
