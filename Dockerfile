@@ -1,5 +1,6 @@
 #Base image
-FROM python:3.9-slim
+FROM tensorflow/tensorflow:2.13.0-gpu
+
 
 WORKDIR /app
 
@@ -16,5 +17,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 RUN pip install "protobuf<4.0.0"
 
 COPY . .
+
+ENV NVIDIA_VISIBLE_DEVICES all
+ENV NVIDIA_DRIVER_CAPABILITIES compute,utility
  
 CMD ["python", "--version"]
+
