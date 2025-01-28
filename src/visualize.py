@@ -1,7 +1,6 @@
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-
 import seaborn as sns
 from sklearn.metrics import confusion_matrix, classification_report
 import numpy as np
@@ -104,9 +103,7 @@ def analyze_model_performance(model, history, X_train, y_train, X_val, y_val, cl
     plt.close()
     
     # 5. Plot feature importance
-    plot_feature_importance(model, X_train[:10])
-    plt.savefig('feature_importance.png')
-    plt.close()
+    #plot_feature_importance(model, X_train[0]) #disable the feature importance for now
     
     # 6. Print classification report
     print("\nTraining Classification Report:")

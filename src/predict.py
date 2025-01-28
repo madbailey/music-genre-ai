@@ -1,24 +1,41 @@
 import numpy as np
 import json
 from tensorflow.keras.models import load_model
-from src.data_loader import load_dataset 
 from src.preprocess_data import process_audio
+from pathlib import Path
+import os
 import librosa
+
 
 def predict_genre(file_path):
     # Load model and label map
-    model = load_model("model/genre_classifier.keras")
+    model_dir = Path("model/checkpoints")
+    model_paths = sorted(list(model_dir.glob("*.keras")))
+    print(f"Found model paths: {model_paths}") #verify models loaded
+    models = [load_model(str(path)) for path in model_paths]
+    if not models:
+      print("No models in checkpoint path, loading base model")
+      models = [load_model("model/genre_classifier.keras")]
+    
     with open("data/processed/label_map.json", "r") as f:
         label_map = json.load(f)
     id_to_genre = {v: k for k, v in label_map.items()}
     
     # Preprocess new audio
-    mfccs = process_audio(file_path)  # Use your existing function
+    mfccs, spectral, chroma = process_audio(file_path)  # Use your existing function
+    mfccs = np.transpose(mfccs, (1, 0))
     mfccs = mfccs[np.newaxis, ..., np.newaxis]  # Add batch and channel dims
+    spectral = np.transpose(spectral, (1, 0))
+    spectral = spectral[np.newaxis, ..., np.newaxis]
+    chroma = np.transpose(chroma, (1, 0))
+    chroma = chroma[np.newaxis, ..., np.newaxis]
     
-    # Predict
-    print(f"Input shape: {mfccs.shape}")  # Should be (1, 130, 13, 1)
-    probs = model.predict(mfccs)[0]
+    # Predict using all models and average
+    all_probs = []
+    for model in models:
+      print(f"Loaded model:{model}")
+      all_probs.append(model.predict([mfccs, spectral, chroma])[0])
+    probs = np.mean(all_probs, axis=0)
     predicted_id = np.argmax(probs)
     return id_to_genre[predicted_id], probs
 
