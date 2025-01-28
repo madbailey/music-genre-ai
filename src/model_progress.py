@@ -6,6 +6,7 @@ import seaborn as sns
 from sklearn.metrics import confusion_matrix, classification_report
 import numpy as np
 import os
+import datetime
 import json
 
 class ModelHistoryTracker:
@@ -55,6 +56,76 @@ class ModelHistoryTracker:
         plt.savefig(save_path)
         plt.close()
         print(f"Saved training plots to {save_path}")
+
+    def save_run(self, history, model_config, train_metrics, val_metrics):
+        """Save a training run with its configuration and metrics."""
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        
+        # Convert numpy values to Python types for JSON serialization
+        history_dict = {}
+        for key, value in history.history.items():
+            history_dict[key] = [float(v) for v in value]
+        
+        run_data = {
+            'timestamp': timestamp,
+            'model_config': model_config,
+            'history': history_dict,
+            'final_metrics': {
+                'train': {k: float(v) for k, v in train_metrics.items()},
+                'val': {k: float(v) for k, v in val_metrics.items()}
+            }
+        }
+        
+        self.runs.append(run_data)
+        
+        # Save to JSON file
+        with open(self.history_file, 'w') as f:
+            json.dump(self.runs, f, indent=2)
+            
+        # Save plots for this run
+        self._save_run_plots(run_data, timestamp)
+        
+        print(f"\nSaved run data for {timestamp}")
+    def plot_accuracy_comparison(self, last_n=5):
+        """Plot validation accuracy comparison of the last N runs."""
+        if not self.runs:
+            print("No runs to compare yet.")
+            return
+            
+        plt.figure(figsize=(12, 6))
+        
+        for run in self.runs[-last_n:]:
+            timestamp = run['timestamp']
+            val_acc = run['history']['val_accuracy']
+            plt.plot(val_acc, label=f'Run {timestamp}')
+        
+        plt.title('Validation Accuracy Comparison')
+        plt.xlabel('Epoch')
+        plt.ylabel('Validation Accuracy')
+        plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+        plt.grid(True)
+        plt.tight_layout()
+        plt.savefig(self.base_dir / 'accuracy_comparison.png')
+        plt.close()
+        
+    def print_summary(self, last_n=5):
+        """Print summary of the last N runs."""
+        if not self.runs:
+            print("No runs to summarize yet.")
+            return
+            
+        print(f"\nSummary of last {min(last_n, len(self.runs))} runs:")
+        print("-" * 80)
+        print(f"{'Timestamp':^20} | {'Final Val Acc':^12} | {'Final Val AUC':^12} | {'Best Val Acc':^12}")
+        print("-" * 80)
+        
+        for run in self.runs[-last_n:]:
+            timestamp = run['timestamp']
+            final_val_metrics = run['final_metrics']['val']
+            best_val_acc = max(run['history']['val_accuracy'])
+            
+            print(f"{timestamp:^20} | {final_val_metrics['accuracy']:^12.4f} | "
+                  f"{final_val_metrics['auc']:^12.4f} | {best_val_acc:^12.4f}")
 
 def analyze_model_performance(model, history, X_train, y_train, X_val, y_val, class_names):
     """Comprehensive model analysis with visualizations."""
