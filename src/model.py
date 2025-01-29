@@ -1,6 +1,7 @@
 import tensorflow as tf
 from tensorflow.keras import layers, models
 from tensorflow.keras.optimizers import Adam
+from src.model_progress import ModelHistoryTracker
 
 class ModelTrainer:
     def __init__(self, input_shapes, num_classes):
@@ -8,6 +9,8 @@ class ModelTrainer:
         self.input_shape_spectral = input_shapes['spectral']
         self.input_shape_chroma = input_shapes['chroma']
         self.num_classes = num_classes
+        self.tracker = ModelHistoryTracker()
+
 
     def _add_attention_mechanism(self, x):
         """Custom attention mechanism to replace GlobalAttention"""
@@ -132,6 +135,7 @@ class ModelTrainer:
             ),
             metrics=['accuracy', tf.keras.metrics.AUC(name='auc')]
         )
+        
         
         return model
 

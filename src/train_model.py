@@ -11,6 +11,10 @@ from src.data_loader import original_load_dataset
 from src.augment import augment_audio, time_warp
 from src.model import ModelTrainer
 from src.bayesianoptimizer import BayesianOptimizationManager, BayesianTrialMonitor
+from src.model_progress import ModelHistoryTracker
+
+# Create tracker instance
+tracker = ModelHistoryTracker()
 
 class AudioDataProcessor:
     def __init__(self, test_size=0.2, random_state=42):
@@ -207,7 +211,66 @@ def main():
         epochs=75,
         callbacks=callbacks
     )
+     # After optimization completes
+    best_hp = optimizer.tuner.get_best_hyperparameters()[0]
+    model = trainer.build_model(best_hp)
     
+    # Training configuration for best model
+    model_config = {
+        'hyperparameters': best_hp.values,
+        'architecture': {
+            'input_shapes': input_shapes,
+            'num_classes': len(processor.class_names)
+        }
+    }
+    
+    # Train best model
+    history = model.fit(
+        [data['train']['mfccs'], data['train']['spectral'], data['train']['chroma']],
+        data['train']['labels'],
+        validation_data=(
+            [data['val']['mfccs'], data['val']['spectral'], data['val']['chroma']],
+            data['val']['labels']
+        ),
+        epochs=75,
+        callbacks=callbacks,
+        verbose=1
+    )
+
+    # Calculate final metrics
+    train_metrics = model.evaluate(
+        [data['train']['mfccs'], data['train']['spectral'], data['train']['chroma']],
+        data['train']['labels'],
+        verbose=0
+    )
+    val_metrics = model.evaluate(
+        [data['val']['mfccs'], data['val']['spectral'], data['val']['chroma']],
+        data['val']['labels'],
+        verbose=0
+    )
+
+    # Package metrics
+    metrics_dict = {
+        'train': {
+            'loss': float(train_metrics[0]),
+            'accuracy': float(train_metrics[1]),
+            'auc': float(train_metrics[2])
+        },
+        'val': {
+            'loss': float(val_metrics[0]),
+            'accuracy': float(val_metrics[1]),
+            'auc': float(val_metrics[2])
+        }
+    }
+
+    # Save training history
+    tracker.save_run(history, model_config, 
+                    metrics_dict['train'], 
+                    metrics_dict['val'])
+
+    # Save best model
+    model.save("model/genre_classifier.keras")
+
     print("\nOptimization complete. Results saved in tuning_results directory.")
 
 if __name__ == "__main__":

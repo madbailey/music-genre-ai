@@ -20,6 +20,13 @@ COPY . .
 
 ENV NVIDIA_VISIBLE_DEVICES all
 ENV NVIDIA_DRIVER_CAPABILITIES compute,utility
- 
+ENV CUDA_VERSION 11.8.0
+ENV LD_LIBRARY_PATH $LD_LIBRARY_PATH:/usr/local/cuda-11.8/lib64
+
+COPY --chown=appuser:appuser . .
+
+# Add CUDA to PATH
+ENV PATH /usr/local/cuda-11.8/bin:$PATH
+
 CMD ["python", "--version"]
 

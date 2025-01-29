@@ -13,6 +13,23 @@ import traceback  # Add this for better error reporting
 # Ensure non-interactive backend for matplotlib
 plt.switch_backend('agg')
 
+class CustomTuner(kt.Tuner):  # Assuming you're using kt = keras_tuner
+    def on_trial_end(self, trial):
+        print(f"\nTrial {trial.trial_id} completed:")
+        print(f"Val Accuracy: {trial.best_metrics.get('val_accuracy', 'N/A')}")
+        print(f"Best val_accuracy so far: {self.best_metrics.get('val_accuracy', 'N/A')}")
+        print("-" * 50)
+        super().on_trial_end(trial)
+
+    def on_search_end(self, *args, **kwargs):
+        print("\nOptimization Results Summary:")
+        print(f"Best validation accuracy: {self.best_metrics.get('val_accuracy', 'N/A')}")
+        print("Best hyperparameters:")
+        for param, value in self.best_hyperparameters.values.items():
+            print(f"{param}: {value}")
+        print("\nOptimization complete.")
+        super().on_search_end(*args, **kwargs)
+
 class BayesianTrialMonitor(tf.keras.callbacks.Callback):
     def __init__(self, trial_num, X_train, y_train, X_val, y_val, class_names):
         super().__init__()
@@ -139,6 +156,7 @@ class BayesianTrialMonitor(tf.keras.callbacks.Callback):
             
             train_f1 = [train_report[genre]['f1-score'] for genre in self.class_names]
             val_f1 = [val_report[genre]['f1-score'] for genre in self.class_names]
+
             
             plt.bar(x - width/2, train_f1, width, label='Train')
             plt.bar(x + width/2, val_f1, width, label='Validation')
@@ -185,48 +203,44 @@ class BayesianOptimizationManager:
         self.trial_monitors = []
         
     def search(self, X_train, y_train, X_val, y_val, class_names, **kwargs):
-        """Run the Bayesian optimization search"""
-        current_trial = 1
-        
-        while current_trial <= self.max_trials:  # Use the instance variable
-            print(f"\nStarting Trial {current_trial}/{self.max_trials}")
-            
-            # Create trial monitor
-            monitor = BayesianTrialMonitor(
-                current_trial,
-                X_train,
-                y_train,
-                X_val,
-                y_val,
-                class_names
-            )
-            
-            # Add monitor to callbacks
-            callbacks = kwargs.get('callbacks', [])
-            callbacks.append(monitor)
-            kwargs['callbacks'] = callbacks
-            
-            # Run single trial
-            self.tuner.search(
-                x=X_train,
-                y=y_train,
-                validation_data=(X_val, y_val),
-                **kwargs
-            )
-            
-            self.trial_monitors.append(monitor)
-            
-            # Save trial summary
-            self._save_trial_summary(current_trial)
-            current_trial += 1
-        
-        # After all trials, save and plot final results
+        """
+        Run the Bayesian optimization search. 
+        """
+        # Create a single monitor callback (not per trial).
+        # This callback will run across ALL Tuner trials:
+        monitor = BayesianTrialMonitor(
+            1,  # We can pass "1" just as an ID label
+            X_train,
+            y_train,
+            X_val,
+            y_val,
+            class_names
+        )
+
+        # Make sure our custom callback is included in the search call
+        callbacks = kwargs.get('callbacks', [])
+        callbacks.append(monitor)
+        kwargs['callbacks'] = callbacks
+
+        # Let Keras Tuner do all trials automatically:
+        self.tuner.search(
+            x=X_train,
+            y=y_train,
+            validation_data=(X_val, y_val),
+            **kwargs
+        )
+
+        # Optionally, you can store or manipulate your callback data
+        self.trial_monitors.append(monitor)
+
+        # Save final results from ALL Tuner trials
         self._save_final_results()
+
     
     def _save_trial_summary(self, trial_num):
         """Save summary for a single trial"""
         try:
-            best_hp = self.tuner.get_best_hyperparameters(1)[0]
+            best_hp = optimizer.tuner.get_best_hyperparameters(num_trials=1)[0]
             
             summary = {
                 'trial': trial_num,
